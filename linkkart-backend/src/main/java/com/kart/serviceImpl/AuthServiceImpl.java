@@ -40,8 +40,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BadRequestException("Username already taken");
         }
 
-        Role role = roleRepository.findByName(RoleName.valueOf(request.getRole().toUpperCase()))
-                .orElseGet(() -> roleRepository.save(Role.builder().name(RoleName.MERCHANT).build()));
+        Role role = getRoleFromRequest(request);
 
         User user = User.builder()
                 .username(request.getUsername())
@@ -55,7 +54,9 @@ public class AuthServiceImpl implements AuthService {
 
         userRepository.save(user);
 
-        Authentication authentication = new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword());
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+        );
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         String accessToken = jwtUtils.generateToken(authentication);
@@ -88,5 +89,19 @@ public class AuthServiceImpl implements AuthService {
                 .email(user.getEmail())
                 .roles(user.getRoles().stream().map(r -> r.getName().name()).collect(Collectors.toSet()))
                 .build();
+    }
+
+    private Role getRoleFromRequest(RegisterRequest request) {
+        RoleName roleName = RoleName.AFFILIATE;
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            try {
+                roleName = RoleName.valueOf(request.getRole().trim().toUpperCase());
+            } catch (IllegalArgumentException ignored) {
+                roleName = RoleName.AFFILIATE;
+            }
+        }
+        RoleName finalRoleName = roleName;
+        return roleRepository.findByName(finalRoleName)
+                .orElseGet(() -> roleRepository.save(Role.builder().name(finalRoleName).build()));
     }
 }
